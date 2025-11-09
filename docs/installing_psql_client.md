@@ -19,8 +19,8 @@ below to install the `psql` client on Ubuntu-based systems.
    sudo apt-get install -y postgresql-client
    ```
 
-If your network egress policy blocks access to Ubuntu or PostgreSQL mirrors you
+If your network egress policy blocks access to Ubuntu mirrors you
 will need to work with your infrastructure team to allow HTTPS traffic to those
-hosts (for example `archive.ubuntu.com`, `security.ubuntu.com`, and
-`apt.postgresql.org`). Without that access, `apt-get` will report HTTP 403
+hosts (for example `archive.ubuntu.com` and `security.ubuntu.com`).
+Without that access, `apt-get` will report HTTP 403
 errors and the installation will fail.
