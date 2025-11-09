@@ -53,6 +53,8 @@ Check out our full documentation for [getting started](https://docs.bespokelabs.
 ```bash
 pip install bespokelabs-curator
 ```
+
+If you need PostgreSQL tooling, follow the [psql client installation notes](docs/installing_psql_client.md).
 ## 📕 Examples
 
 ### Finetuning/Distillation
