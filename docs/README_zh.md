@@ -41,7 +41,7 @@ Bespoke Curator 让创建合成数据流程变得简单。无论您是在训练�
 
 ![CLI 运行示例](docs/curator-cli.gif)
 
-查看我们完整的文档，包括[入门指南](https://docs.bespokelabs.ai/bespoke-curator/getting-started)、[教程](https://docs.bespokelabs.ai/bespoke-curator/tutorials)、[使用指南](https://docs.bespokelabs.ai/bespoke-curator/how-to-guides)和详细的[参考文档](https://docs.bespokelabs.ai/bespoke-curator/api-reference/llm-api-documentation)。
+查看我们完整的文档，包括[入门指南](https://docs.bespokelabs.ai/bespoke-curator/getting-started)、[教程](https://docs.bespokelabs.ai/bespoke-curator/how-to-guides)、[使用指南](https://docs.bespokelabs.ai/bespoke-curator/how-to-guides)和详细的[参考文档](https://docs.bespokelabs.ai/bespoke-curator/api-reference/llm-api-documentation)。
 
 
 ## 安装
