@@ -17,8 +17,9 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           fail: true
-          # lychee v0.23.0 removed --exclude-mail; mail links are excluded unless --include-mail is provided.
+          # lychee v0.23.0 excludes mail links unless --include-mail is set.
           args: >-
+            "./README.md"
             "./docs/**/*.md"
             --scheme http
             --scheme https
@@ -31,3 +32,4 @@ jobs:
           failIfEmpty: true
           jobSummary: true
           checkbox: true
+          lycheeVersion: v0.23.0
