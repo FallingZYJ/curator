@@ -48,11 +48,6 @@ class Client:
         return self._session
 
     @property
-    def authenticated(self):
-        """Check if the client is authenticated."""
-        return self._authenticated
-
-    @property
     def hosted(self):
         """Check if the client is hosted."""
         return self._hosted
@@ -74,7 +69,7 @@ class Client:
             return self.session
         metadata.update({"status": _SessionStatus.STARTED})
 
-        response = requests.post(f"{BASE_CLIENT_URL}/sessions", json=metadata, headers=self._headers)
+        response = requests.post(f"{BASE_CLIENT_URL}/sessions", json=metadata, headers=self._headers, timeout=30)
 
         if response.status_code == 200:
             self._session = response.json().get("session_id")

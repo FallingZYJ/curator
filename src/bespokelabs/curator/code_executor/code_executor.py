@@ -16,14 +16,12 @@ from bespokelabs.curator.code_executor.code_execution_backend._factory import _C
 from bespokelabs.curator.code_executor.code_formatter import CodeFormatter
 from bespokelabs.curator.code_executor.db import CodeMetadataDB
 from bespokelabs.curator.code_executor.types import CodeExecutionRequestParams
+from bespokelabs.curator.constants import _CURATOR_DEFAULT_CACHE_DIR
 from bespokelabs.curator.llm.llm import _convert_to_dataset, _get_function_hash, _get_function_source
 from bespokelabs.curator.log import logger
 
 if TYPE_CHECKING:
     from datasets import Dataset
-
-# Constants
-_CURATOR_DEFAULT_CACHE_DIR = "~/.cache/curator"
 T = TypeVar("T")
 _DictOrBaseModel = Dict[str, Any] | BaseModel
 
@@ -50,13 +48,13 @@ class CodeExecutor:
 
     def __init__(
         self,
-        backend: str = "multiprocessing",
+        backend: str = "local",
         backend_params: dict = None,
     ):
         """Initialize the CodeExecutor with specified backend and parameters.
 
         Args:
-            backend: The execution backend to use ("multiprocessing" by default)
+            backend: The sandbox backend to use (e.g. "local", "docker", "e2b", "modal", "daytona")
             backend_params: Configuration parameters for the backend
         """
         self._code_executor = _CodeExecutionBackendFactory.create(backend=backend, backend_params=backend_params)

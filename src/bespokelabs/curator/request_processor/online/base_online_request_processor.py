@@ -273,10 +273,13 @@ class BaseOnlineRequestProcessor(BaseRequestProcessor, ABC):
         Args:
             generic_request_files: List of request files to process
         """
+        max_requests_per_minute = self.max_requests_per_minute
+        max_tokens_per_minute = self.max_tokens_per_minute
+
         self.tracker = OnlineStatusTracker(
             token_limit_strategy=self.token_limit_strategy,
-            max_requests_per_minute=self.max_requests_per_minute,
-            max_tokens_per_minute=self.max_tokens_per_minute,
+            max_requests_per_minute=max_requests_per_minute,
+            max_tokens_per_minute=max_tokens_per_minute,
             compatible_provider=self.compatible_provider,
             viewer_client=self._viewer_client,
             model=self.prompt_formatter.model_name,
@@ -312,7 +315,9 @@ class BaseOnlineRequestProcessor(BaseRequestProcessor, ABC):
     def aiohttp_connector(self, tcp_limit: int) -> aiohttp.ClientSession:
         """Create an aiohttp connector with rate limiting."""
         connector = aiohttp.TCPConnector(limit=10 * tcp_limit)
-        return aiohttp.ClientSession(connector=connector)
+        # trust_env=True makes aiohttp honor HTTP_PROXY/HTTPS_PROXY/ALL_PROXY/NO_PROXY,
+        # which it otherwise ignores unlike requests/httpx (see issue #699).
+        return aiohttp.ClientSession(connector=connector, trust_env=True)
 
     async def process_requests_from_file(
         self,
@@ -614,17 +619,17 @@ class BaseOnlineRequestProcessor(BaseRequestProcessor, ABC):
             data: Response data to append
             filename: File to append to
         """
-        raw_response = data.response_message
-        responses = self._process_response(data)
-        if not responses:
-            return
+        # Parsing may reject or mutate a response, but the paid-for result must
+        # remain available to reparse without another API call.
+        responses = self._process_response(data.model_copy(deep=True))
         data.parsed_response_message = responses
-        data.response_message = raw_response
         data_dump = data.model_dump()
         json_string = json.dumps(data_dump, default=str)
         async with aiofiles.open(filename, "a") as f:
             await f.write(json_string + "\n")
         logger.debug(f"Successfully appended response to {filename}")
+        if not responses:
+            return
         filename = os.path.basename(filename).split(".")[0]
         idx = status_tracker.num_parsed_responses
         status_tracker.num_parsed_responses = idx + len(responses)

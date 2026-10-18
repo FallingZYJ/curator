@@ -6,10 +6,160 @@ from datasets import Dataset
 from pydantic import BaseModel, Field
 
 from bespokelabs import curator
+from bespokelabs.curator.request_processor.batch.azure_batch_request_processor import AzureBatchRequestProcessor
+from bespokelabs.curator.request_processor.batch.mistral_batch_request_processor import MistralBatchRequestProcessor
+from bespokelabs.curator.request_processor.config import BatchRequestProcessorConfig
+from bespokelabs.curator.types.generic_batch import GenericBatch, GenericBatchRequestCounts, GenericBatchStatus
+from bespokelabs.curator.types.generic_request import GenericRequest
 
 
 class Answer(BaseModel):
     answer: int = Field(description="The answer to the question")
+
+
+class _CostProcessorStub:
+    def cost(self, **kwargs):
+        return 0.0
+
+
+def _generic_request() -> GenericRequest:
+    return GenericRequest(
+        model="mistral-small-latest",
+        messages=[{"role": "user", "content": "hello"}],
+        original_row={},
+        original_row_idx=0,
+    )
+
+
+def _generic_batch() -> GenericBatch:
+    now = pd.Timestamp("2025-01-01T00:00:00Z").to_pydatetime()
+    return GenericBatch(
+        request_file="requests.jsonl",
+        id="batch-id",
+        created_at=now,
+        finished_at=now,
+        status=GenericBatchStatus.FINISHED.value,
+        api_key_suffix="test",
+        request_counts=GenericBatchRequestCounts(
+            failed=0,
+            succeeded=1,
+            total=1,
+            raw_request_counts_object={},
+        ),
+        raw_batch={},
+        raw_status="SUCCESS",
+    )
+
+
+def test_mistral_batch_response_includes_normalized_finish_reason() -> None:
+    """Mistral batch responses expose finish_reason for invalid-finish retries."""
+    processor = MistralBatchRequestProcessor.__new__(MistralBatchRequestProcessor)
+    processor.config = BatchRequestProcessorConfig(model="mistral-small-latest")
+    processor._cost_processor = _CostProcessorStub()
+
+    raw_response = {
+        "response": {
+            "status_code": 200,
+            "body": {
+                "choices": [
+                    {
+                        "message": {"content": "hello"},
+                        "finish_reason": "length",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 2,
+                    "total_tokens": 3,
+                },
+            },
+        }
+    }
+
+    response = processor.parse_api_specific_response(
+        raw_response=raw_response,
+        generic_request=_generic_request(),
+        batch=_generic_batch(),
+    )
+
+    assert response.finish_reason == "length"
+
+
+def test_azure_batch_requires_base_url() -> None:
+    """Azure batch backend needs a resource-specific base_url; there's no sensible default."""
+    config = BatchRequestProcessorConfig(model="gpt-4o", azure_deployment="my-gpt4o-deployment")
+    with pytest.raises(ValueError, match="base_url"):
+        AzureBatchRequestProcessor(config)
+
+
+def test_azure_batch_requires_deployment_name() -> None:
+    """Azure batch backend needs an explicit deployment name distinct from the model name."""
+    config = BatchRequestProcessorConfig(model="gpt-4o", base_url="https://my-resource.openai.azure.com/openai/v1/")
+    with pytest.raises(ValueError, match="azure_deployment"):
+        AzureBatchRequestProcessor(config)
+
+
+def test_azure_batch_endpoint_omits_v1_prefix() -> None:
+    """Azure's batches.create() `endpoint` argument omits the "/v1" prefix OpenAI's API uses."""
+    assert AzureBatchRequestProcessor._BATCH_ENDPOINT == "/chat/completions"
+
+
+def test_azure_batch_request_uses_deployment_name_not_model() -> None:
+    """The request body's `model` field must be the Azure deployment name, not curator's `model` config.
+
+    `model` stays the underlying model name (e.g. "gpt-4o") since that's what's used for litellm-based
+    cost lookups, while Azure requires the deployment name to route the actual API request.
+    """
+    processor = AzureBatchRequestProcessor.__new__(AzureBatchRequestProcessor)
+    processor.config = BatchRequestProcessorConfig(
+        model="gpt-4o",
+        base_url="https://my-resource.openai.azure.com/openai/v1/",
+        azure_deployment="my-gpt4o-deployment",
+    )
+
+    api_request = processor.create_api_specific_request_batch(_generic_request())
+
+    assert api_request["body"]["model"] == "my-gpt4o-deployment"
+    assert api_request["url"] == "/v1/chat/completions"
+
+
+def test_azure_cost_processor_prefixes_model_for_litellm_lookup(monkeypatch) -> None:
+    """_AzureCostProcessor should query litellm's `azure/`-prefixed pricing table, not the bare model name."""
+    import litellm
+
+    from bespokelabs.curator.cost import _AzureCostProcessor
+
+    config = BatchRequestProcessorConfig(model="gpt-4o", base_url="https://x.openai.azure.com/openai/v1/", azure_deployment="d")
+    processor = _AzureCostProcessor(config=config, batch=False)
+
+    monkeypatch.setitem(litellm.model_cost, "azure/gpt-4o", {"input_cost_per_token": 1.0, "output_cost_per_token": 1.0})
+
+    calls = {}
+
+    def fake_completion_cost(**kwargs):
+        calls.update(kwargs)
+        return 1.23
+
+    monkeypatch.setattr(litellm, "completion_cost", fake_completion_cost)
+
+    cost = processor.cost(model="gpt-4o", prompt="hi", completion="there")
+
+    assert calls["model"] == "azure/gpt-4o"
+    assert cost == 1.23
+
+
+def test_azure_cost_processor_falls_back_without_azure_specific_pricing() -> None:
+    """When litellm has no `azure/`-prefixed entry, fall back to the default bare-model lookup."""
+    from bespokelabs.curator.cost import _AzureCostProcessor
+
+    config = BatchRequestProcessorConfig(model="some-unlisted-model", base_url="https://x.openai.azure.com/openai/v1/", azure_deployment="d")
+    processor = _AzureCostProcessor(config=config, batch=False)
+
+    # Neither "azure/some-unlisted-model" nor "some-unlisted-model" are real litellm models,
+    # so the fallback lookup should just return 0.0 rather than raising.
+    cost = processor.cost(model="some-unlisted-model", prompt="hi", completion="there")
+
+    assert cost == 0.0
 
 
 def batch_call(model_name, prompts):
