@@ -120,7 +120,7 @@ class CodeMetadataDB:
                         metadata["code_input"],
                         metadata["code_output"],
                         metadata["timestamp"],
-                        "-",
+                        metadata["timestamp"],
                     ),
                 )
             conn.commit()

@@ -1,0 +1,35 @@
+name: Link check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  lychee:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: true
+          # lychee v0.23.0 excludes mail links unless --include-mail is set.
+          args: >-
+            "./README.md"
+            "./docs/**/*.md"
+            --scheme http
+            --scheme https
+            --cache
+            --max-cache-age 7d
+            --verbose
+            --accept 200,403,429
+          output: ./lychee-out.md
+          format: markdown
+          failIfEmpty: true
+          jobSummary: true
+          checkbox: true
+          lycheeVersion: v0.23.0

@@ -99,7 +99,7 @@ def test_store_metadata_new_entry(tmp_path):
     assert row[3] == metadata["code_input"]
     assert row[4] == metadata["code_output"]
     assert row[5] == metadata["timestamp"]
-    assert row[6] == "-"  # Default last_edited_time
+    assert row[6] == metadata["timestamp"]  # Default last_edited_time
 
 
 def test_store_metadata_update_existing(tmp_path):
